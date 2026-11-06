@@ -198,3 +198,12 @@ export function sortBoardRequests(
 export function capitalize(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : ''
 }
+
+export function buildCsv(rows: unknown[][]): string {
+  return rows
+    .map((row) => row.map((value) => {
+      const field = value == null ? '' : String(value)
+      return /[",\r\n]/.test(field) ? `"${field.replaceAll('"', '""')}"` : field
+    }).join(','))
+    .join('\r\n')
+}

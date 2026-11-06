@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { listRequests } from '../api'
-import { displayDateToISO, getDefaultDateRange, shiftISODate, isRequestOverdue, filterBoardRequests, sortBoardRequests, capitalize, formatDueDate, priorityBadgeStyles, statusBadgeStyles } from '../lib/helper'
+import { displayDateToISO, getDefaultDateRange, shiftISODate, isRequestOverdue, filterBoardRequests, sortBoardRequests, capitalize, formatDueDate, priorityBadgeStyles, statusBadgeStyles, buildCsv, formatSiteCreatedAt } from '../lib/helper'
 import { toApiDate } from '../lib/dates'
 
 
@@ -86,6 +86,8 @@ function FilterChip({ label, active, onClick }: FilterChipProps) {
   )
 }
 
+
+
 function Table({
   onRowClick,
   siteNameMap = new Map<number, string>(),
@@ -94,6 +96,8 @@ function Table({
 }: TableProps) {
  const [now] = useState(() => new Date())
  const [searchParams, setSearchParams] = useSearchParams()
+ const [isExporting, setIsExporting] = useState(false)
+ const [exportError, setExportError] = useState('')
  const {
     createdFrom,
     createdTo,
@@ -205,6 +209,68 @@ function Table({
      created_from: apiDateOrEmpty(defaultRange.createdFrom),
      created_to: apiDateOrEmpty(defaultRange.createdTo),
    })
+
+
+ const exportCsv = async () => {
+   setIsExporting(true)
+   setExportError('')
+   try {
+     const exportParams = { ...requestParams, page: 1, per_page: 100 }
+     const firstPage = await listRequests({
+             ...exportParams,
+             status: selectedStatuses.length ? JSON.stringify(selectedStatuses) : undefined,
+           })
+     const allRequests = [...firstPage.data]
+     const totalPages = Math.max(1, firstPage.total_pages ?? 1)
+
+     for (let exportPage = 2; exportPage <= totalPages; exportPage += 1) {
+       const pageResponse = await listRequests({
+                 ...exportParams,
+                 page: exportPage,
+                 status: selectedStatuses.length ? JSON.stringify(selectedStatuses) : undefined,
+               })
+       allRequests.push(...pageResponse.data)
+     }
+
+     const matchingRequests = sortBoardRequests(
+       filterBoardRequests(allRequests, boardFilters),
+       sortBy,
+       sortOrder,
+     )
+     const csvRows = [
+       ['ref', 'site', 'title', 'priority', 'status', 'assignee', 'created_at', 'due_on', 'overdue'],
+       ...matchingRequests.map((request) => {
+         const timezone = siteTimezoneMap.get(request.site_id)
+         return [
+           request.ref,
+           siteNameMap.get(request.site_id) ?? '',
+           request.title,
+           request.priority,
+           request.status,
+           request.assignee
+             ? staffMap.get(request.assignee.id) ?? request.assignee.name
+             : '',
+           formatSiteCreatedAt(request.created_at, timezone),
+           request.due_on?.slice(0, 10) ?? '',
+           String(isRequestOverdue(request.due_on, request.status, timezone, now)),
+         ]
+       }),
+     ]
+     const blob = new Blob([buildCsv(csvRows)], { type: 'text/csv;charset=utf-8' })
+     const downloadUrl = URL.createObjectURL(blob)
+     const link = document.createElement('a')
+     link.href = downloadUrl
+     link.download = `requests-${createdFrom}-${createdTo}.csv`
+     document.body.appendChild(link)
+     link.click()
+     link.remove()
+     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+   } catch (caughtError) {
+     setExportError(caughtError instanceof Error ? caughtError.message : 'Could not export requests.')
+   } finally {
+     setIsExporting(false)
+   }
+ }
   return (
    <div className="space-y-5">
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -319,7 +385,14 @@ function Table({
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
-
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={isExporting}
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+        >
+          {isExporting ? 'Preparing CSV…' : 'Download CSV'}
+        </button>
       </div>
     </div>
 
@@ -335,6 +408,12 @@ function Table({
           </p>
         </div>
 
+      </div>
+    )}
+
+    {exportError && (
+      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        Could not export requests: {exportError}
       </div>
     )}
 
