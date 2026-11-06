@@ -72,7 +72,10 @@ function App() {
      siteTimezoneMap={siteTimezoneMap}
      staffMap={staffMap}/>
 
-    {selectedRequest && <RequestDetail/>}
+    {selectedRequest && <RequestDetail request={selectedRequest}
+    staffMap={staffMap}
+    onClose={() => setSelectedRequest(null)}
+    onBack={() => setSelectedRequest(null)}/>}
     </div>
   </main>
  )

@@ -130,6 +130,55 @@ export function isRequestOverdue(
   return dueDate < localDate(now, resolveSiteTimezone(timezone))
 }
 
+export function formatEventTimestamp(unixSeconds: number | string | null | undefined, timezone?: string): string {
+  if (unixSeconds == null) return '—'
+  const date = new Date(Number(unixSeconds) * 1000)
+  if (Number.isNaN(date.getTime())) return '—'
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: resolveSiteTimezone(timezone),
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date)
+    const part = (type: string) => parts.find((item) => item.type === type)?.value
+    const formatted = `${part('day')}/${part('month')}/${part('year')}, ${part('hour')}:${part('minute')}`
+    return timezone ? `${formatted} ${timezone}` : formatted
+  } catch {
+    return date.toISOString()
+  }
+}
+
+export function formatDueAt(value: string | number | null | undefined, timezone?: string): string {
+  if (value == null) return ''
+  return timezone ? `${value} (${timezone})` : String(value)
+}
+
+export function formatSiteCreatedAt(value: string | null | undefined, timezone?: string): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: resolveSiteTimezone(timezone),
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date)
+    const part = (type: string) => parts.find((item) => item.type === type)?.value
+    const formatted = `${part('day')}/${part('month')}/${part('year')} ${part('hour')}:${part('minute')}`
+    return timezone ? `${formatted} (${timezone})` : formatted
+  } catch {
+    return date.toISOString()
+  }
+}
+
 
 export function sortBoardRequests(
   requests: HelpdeskRequest[],
