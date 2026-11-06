@@ -66,7 +66,11 @@ function App() {
       </div>
     )}
 
-    <Table />
+    <Table
+     onRowClick={setSelectedRequest}
+     siteNameMap={siteNameMap}
+     siteTimezoneMap={siteTimezoneMap}
+     staffMap={staffMap}/>
 
     {selectedRequest && <RequestDetail/>}
     </div>
